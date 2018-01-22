@@ -1,0 +1,36 @@
+{
+  "name": "nodebb-plugin-global-chat",
+  "version": "1.0.0",
+  "description": "Adds a global chat room to NodeBB",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nodebb/nodebb-plugin-global-chat.git"
+  },
+  "keywords": [
+    "nodebb",
+    "plugin",
+    "global",
+    "chat",
+    "shout",
+    "box",
+    "chatbox"
+  ],
+  "author": "PitaJ",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nodebb/nodebb-plugin-global-chat/issues"
+  },
+  "homepage": "https://github.com/nodebb/nodebb-plugin-global-chat#readme",
+  "dependencies": {
+    "async": "^2.6.0"
+  },
+  "devDependencies": {
+    "eslint": "^4.16.0",
+    "eslint-config-airbnb-base": "^12.1.0",
+    "eslint-plugin-import": "^2.8.0"
+  }
+}

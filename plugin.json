@@ -1,0 +1,12 @@
+{
+  "library": "index.js",
+  "hooks": [
+    { "hook": "static:app.load", "method": "init" },
+    { "hook": "action:user.create", "method": "addUser" },
+    { "hook": "filter:config.get", "method": "addRoomId" },
+    { "hook": "filter:messaging.notify", "method": "shouldNotify" }
+  ],
+  "scripts": [
+    "public/client.js"
+  ]
+}
