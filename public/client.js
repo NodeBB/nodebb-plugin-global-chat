@@ -9,7 +9,7 @@ $(document).ready(function () {
     return '<a href="#" data-action="global-chat-' + action + '"><i class="fa fa-fw fa-bell' + (ignoring ? '' : '-slash') + '-o"></i> [[category:' + action + ']]</a>';
   }
 
-  $('head').append('<style type="text/css">[data-roomid="' + roomId + '"] [data-action="leave"] { display: none; }</style>');
+  $('head').append('<style type="text/css">[data-roomid="' + roomId + '"] [data-action="leave"], [data-roomid="' + roomId + '"] [component="chat/leave"] { display: none; }</style>');
   $(document).on('click', '[data-roomid="' + roomId + '"] [component="chat/controlsToggle"]', function (e) {
     var elem = $(e.target);
     if (elem.hasClass('global-chat-fixed')) {
