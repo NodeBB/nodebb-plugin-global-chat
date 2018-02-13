@@ -16,8 +16,7 @@
     "global",
     "chat",
     "shout",
-    "box",
-    "chatbox"
+    "box"
   ],
   "author": "PitaJ",
   "license": "MIT",
@@ -32,5 +31,8 @@
     "eslint": "^4.16.0",
     "eslint-config-airbnb-base": "^12.1.0",
     "eslint-plugin-import": "^2.8.0"
+  },
+  "nbbpm": {
+    "compatibility": "1.7.x"
   }
 }
