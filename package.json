@@ -33,6 +33,6 @@
     "eslint-plugin-import": "^2.8.0"
   },
   "nbbpm": {
-    "compatibility": "1.7.x"
+    "compatibility": "1.7.x || 1.8.x"
   }
 }
