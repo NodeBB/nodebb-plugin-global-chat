@@ -1,0 +1,19 @@
+{
+  "globals": {
+    "$": true,
+    "document": true,
+    "config": true,
+    "socket": true,
+    "app": true,
+    "define": true,
+    "bootbox": true
+  },
+  "rules": {
+    "prefer-arrow-callback": "off",
+    "func-names": "off",
+    "strict": "off",
+    "object-shorthand": "off",
+    "no-var": "off",
+    "prefer-template": "off"
+  }
+}

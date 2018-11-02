@@ -1,6 +1,3 @@
-/* global $, document, config, socket, app */
-/* eslint no-var: 0, prefer-arrow-callback: 0, func-names: 0, strict: 0, prefer-template: 0 */
-
 $(document).ready(function () {
   var roomId = config.globalChatRoomId;
 
@@ -9,9 +6,23 @@ $(document).ready(function () {
     return '<a href="#" data-action="global-chat-' + action + '"><i class="fa fa-fw fa-bell' + (ignoring ? '' : '-slash') + '-o"></i> [[category:' + action + ']]</a>';
   }
 
-  $('head').append('<style type="text/css">[data-roomid="' + roomId + '"] [data-action="leave"], [data-roomid="' + roomId + '"] [component="chat/leave"] { display: none; }</style>');
+  $('head').append(
+    '<style type="text/css">' +
+    '[data-roomid="' + roomId + '"] [data-action="leave"],' +
+    '[data-roomid="' + roomId + '"] [component="chat/leave"] {' +
+    '  display: none;' +
+    '}' +
+    '[data-roomid="' + roomId + '"] [component="chat/header"] .members {' +
+    '  display: none;' +
+    '}' +
+    '[data-roomid="' + roomId + '"] [component="chat/header"]::before {' +
+    '  content: "Chat with everyone";' +
+    '  font-weight: 500;' +
+    '}' +
+    '</style>'
+  );
   $(document).on('click', '[data-roomid="' + roomId + '"] [component="chat/controlsToggle"]', function (e) {
-    var elem = $(e.target);
+    var elem = $(e.currentTarget);
     if (elem.hasClass('global-chat-fixed')) {
       return;
     }
@@ -31,7 +42,7 @@ $(document).ready(function () {
   });
 
   $(document).on('click', '[data-roomid="' + roomId + '"] [data-action^="global-chat-"]', function (e) {
-    var elem = $(e.target);
+    var elem = $(e.currentTarget);
     var ignoring = elem.attr('data-action') === 'global-chat-watch';
 
     socket.emit('plugins.globalChat.' + (ignoring ? 'watch' : 'ignore'), function (err) {
