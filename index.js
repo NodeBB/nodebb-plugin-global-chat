@@ -15,6 +15,7 @@ const {
   sortedSetAdd,
   setObject,
   incrObjectField,
+  delete: deleteItem,
 } = require.main.require('./src/database');
 const winston = require.main.require('winston');
 const User = require.main.require('./src/user');
@@ -27,13 +28,21 @@ const usersIgnoringKey = 'plugin-global-chat:ignoring';
 
 let roomId = null;
 
-function newRoom(uids, callback) {
+// because the functionality doesn't exist in core
+function newRoom(uids, oldRoomId, callback) {
   let newRoomId;
   const now = Date.now();
   waterfall([
-    next => incrObjectField('global', 'nextChatRoomId', next),
-    (_roomId, next) => {
-      newRoomId = _roomId;
+    (next) => {
+      if (oldRoomId != null) {
+        next(null, oldRoomId);
+        return;
+      }
+
+      incrObjectField('global', 'nextChatRoomId', next);
+    },
+    (createdRoomId, next) => {
+      newRoomId = createdRoomId;
       const room = {
         roomId: newRoomId,
         groupChat: 1,
@@ -47,11 +56,46 @@ function newRoom(uids, callback) {
   ], callback);
 }
 
-exports.init = (params, callback) => {
+function deleteRoom(callback) {
+  waterfall([
+    // get all uids
+    next => User.getUidsFromSet('users:joindate', 0, -1, next),
+    // remove all users from room
+    (uids, next) => Messaging.leaveRoom(uids, roomId, err => next(err)),
+    // delete room
+    next => deleteItem(`chat:room:${roomId}`, next),
+  ], err => callback(err));
+}
+
+const renderAdmin = (req, res) => {
+  res.render('admin/plugins/global-chat', {});
+};
+
+exports.init = ({ router, middleware }, callback) => {
+  router.get('/admin/plugins/global-chat', middleware.admin.buildHeader, renderAdmin);
+  router.get('/api/admin/plugins/global-chat', renderAdmin);
+
+  router.post('/api/admin/plugins/global-chat/delete-room', (req, res, next) => {
+    deleteRoom((err) => {
+      if (err) {
+        next(err);
+        return;
+      }
+
+      res.sendStatus(200);
+    });
+  });
+
+  let oldRoomId;
+
   waterfall([
     next => get(roomKey, next),
     (roomIdVal, next) => {
-      roomId = roomIdVal;
+      oldRoomId = roomIdVal;
+      get(`chat:room:${roomIdVal}`, next);
+    },
+    (room, next) => {
+      roomId = room && room.roomId;
 
       if (roomId != null) {
         callback();
@@ -62,7 +106,7 @@ exports.init = (params, callback) => {
     // get all uids
     next => User.getUidsFromSet('users:joindate', 0, -1, next),
     // add all uids to the room
-    (uids, next) => newRoom(uids, next),
+    (uids, next) => newRoom(uids, oldRoomId, next),
     (roomIdVal, next) => {
       roomId = roomIdVal;
       if (roomId == null) {
@@ -109,6 +153,16 @@ exports.shouldNotify = (data, callback) => {
   } else {
     callback(null, data);
   }
+};
+
+exports.adminMenu = (header, callback) => {
+  header.plugins.push({
+    route: '/plugins/global-chat',
+    icon: 'fa-comments',
+    name: 'Global Chat',
+  });
+
+  callback(null, header);
 };
 
 function ignore(socket, callback) {
