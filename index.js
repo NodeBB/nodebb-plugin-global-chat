@@ -8,6 +8,7 @@ const {
 
 const {
   get,
+  getObjectField,
   set,
   isSetMember,
   setAdd,
@@ -89,13 +90,14 @@ exports.init = ({ router, middleware }, callback) => {
   let oldRoomId;
 
   waterfall([
+    // check if room already exists
     next => get(roomKey, next),
     (roomIdVal, next) => {
       oldRoomId = roomIdVal;
-      get(`chat:room:${roomIdVal}`, next);
+      getObjectField(`chat:room:${roomIdVal}`, 'roomId', next);
     },
-    (room, next) => {
-      roomId = room && room.roomId;
+    (roomIdVal, next) => {
+      roomId = roomIdVal;
 
       if (roomId != null) {
         callback();
