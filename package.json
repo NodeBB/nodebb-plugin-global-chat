@@ -1,6 +1,6 @@
 {
   "name": "nodebb-plugin-global-chat",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Adds a global chat room to NodeBB",
   "main": "index.js",
   "scripts": {
