@@ -6,22 +6,14 @@ const {
   filter,
 } = require('async');
 
-const {
-  get,
-  getObjectField,
-  set,
-  isSetMember,
-  setAdd,
-  setRemove,
-  sortedSetAdd,
-  setObject,
-  incrObjectField,
-  delete: deleteItem,
-} = require.main.require('./src/database');
+const nconf = require.main.require('nconf');
 const winston = require.main.require('winston');
+
+const db = require.main.require('./src/database');
 const User = require.main.require('./src/user');
 const Messaging = require.main.require('./src/messaging');
 const PluginSockets = require.main.require('./src/socket.io/plugins');
+const pubsub = require.main.require('./src/pubsub');
 
 const roomKey = 'plugin-global-chat:roomId';
 // set of users ignoring the global chat
@@ -40,7 +32,7 @@ function newRoom(uids, oldRoomId, callback) {
         return;
       }
 
-      incrObjectField('global', 'nextChatRoomId', next);
+      db.incrObjectField('global', 'nextChatRoomId', next);
     },
     (createdRoomId, next) => {
       newRoomId = createdRoomId;
@@ -49,9 +41,9 @@ function newRoom(uids, oldRoomId, callback) {
         groupChat: 1,
         roomName: 'Global Chat',
       };
-      setObject(`chat:room:${newRoomId}`, room, next);
+      db.setObject(`chat:room:${newRoomId}`, room, next);
     },
-    next => sortedSetAdd(`chat:room:${newRoomId}:uids`, uids.map(() => now), uids, next),
+    next => db.sortedSetAdd(`chat:room:${newRoomId}:uids`, uids.map(() => now), uids, next),
     next => Messaging.addRoomToUsers(newRoomId, uids, now, next),
     next => next(null, newRoomId),
   ], callback);
@@ -64,13 +56,18 @@ function deleteRoom(callback) {
     // remove all users from room
     (uids, next) => Messaging.leaveRoom(uids, roomId, err => next(err)),
     // delete room
-    next => deleteItem(`chat:room:${roomId}`, next),
+    next => db.delete(`chat:room:${roomId}`, next),
   ], err => callback(err));
 }
 
 const renderAdmin = (req, res) => {
   res.render('admin/plugins/global-chat', {});
 };
+
+const updateRoomEvent = 'global-chat:update-roomId';
+pubsub.on(updateRoomEvent, (newRoomId) => {
+  roomId = newRoomId;
+});
 
 exports.init = ({ router, middleware }, callback) => {
   router.get('/admin/plugins/global-chat', middleware.admin.buildHeader, renderAdmin);
@@ -87,19 +84,27 @@ exports.init = ({ router, middleware }, callback) => {
     });
   });
 
+  // only run on primary machine
+  // let pubsub handle it
+  if (!nconf.get('runJobs')) {
+    callback();
+    return;
+  }
+
   let oldRoomId;
 
   waterfall([
     // check if room already exists
-    next => get(roomKey, next),
+    next => db.get(roomKey, next),
     (roomIdVal, next) => {
       oldRoomId = roomIdVal;
-      getObjectField(`chat:room:${roomIdVal}`, 'roomId', next);
+      db.getObjectField(`chat:room:${roomIdVal}`, 'roomId', next);
     },
     (roomIdVal, next) => {
       roomId = roomIdVal;
 
       if (roomId != null) {
+        pubsub.publish(updateRoomEvent, roomId);
         callback();
       } else {
         next();
@@ -116,7 +121,8 @@ exports.init = ({ router, middleware }, callback) => {
         return;
       }
 
-      set(roomKey, roomId, next);
+      db.set(roomKey, roomId, next);
+      pubsub.publish(updateRoomEvent, roomId);
     },
   ], callback);
 };
@@ -131,7 +137,7 @@ exports.addUser = (data) => {
 
   const now = Date.now();
   parallel([
-    next => sortedSetAdd(`chat:room:${roomId}:uids`, now, uid, next),
+    next => db.sortedSetAdd(`chat:room:${roomId}:uids`, now, uid, next),
     next => Messaging.addRoomToUsers(roomId, [uid], now, next),
   ], err => err && winston.error('[plugin-global-chat] Error adding user to global chat', err));
 };
@@ -144,7 +150,7 @@ exports.addRoomId = (config, callback) => {
 exports.shouldNotify = (data, callback) => {
   // eslint-disable-next-line eqeqeq
   if (data.roomId == roomId) {
-    filter(data.uids, (uid, next) => isSetMember(
+    filter(data.uids, (uid, next) => db.isSetMember(
       usersIgnoringKey,
       uid,
       (err, yes) => next(err, !yes)
@@ -168,14 +174,14 @@ exports.adminMenu = (header, callback) => {
 };
 
 function ignore(socket, callback) {
-  setAdd(usersIgnoringKey, socket.uid, callback);
+  db.setAdd(usersIgnoringKey, socket.uid, callback);
 }
 // opposite of ignore
 function watch(socket, callback) {
-  setRemove(usersIgnoringKey, socket.uid, callback);
+  db.setRemove(usersIgnoringKey, socket.uid, callback);
 }
 function isIgnoring(socket, callback) {
-  isSetMember(usersIgnoringKey, socket.uid, callback);
+  db.isSetMember(usersIgnoringKey, socket.uid, callback);
 }
 PluginSockets.globalChat = {
   ignore,
