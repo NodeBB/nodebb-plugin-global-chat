@@ -1,11 +1,5 @@
 'use strict';
 
-const {
-  parallel,
-  waterfall,
-  filter,
-} = require('async');
-
 const nconf = require.main.require('nconf');
 const winston = require.main.require('winston');
 
@@ -15,176 +9,149 @@ const Messaging = require.main.require('./src/messaging');
 const PluginSockets = require.main.require('./src/socket.io/plugins');
 const pubsub = require.main.require('./src/pubsub');
 
-const roomKey = 'plugin-global-chat:roomId';
-// set of users ignoring the global chat
-const usersIgnoringKey = 'plugin-global-chat:ignoring';
+const ROOM_KEY = 'plugin-global-chat:roomId';
+
+/**
+ * Set of users ignoring the global chat
+ */
+const USERS_IGNORING_KEY = 'plugin-global-chat:ignoring';
 
 let roomId = null;
 
-// because the functionality doesn't exist in core
-function newRoom(uids, oldRoomId, callback) {
-  let newRoomId;
-  const now = Date.now();
-  waterfall([
-    (next) => {
-      if (oldRoomId != null) {
-        next(null, oldRoomId);
-        return;
-      }
+/**
+ * Creates a new Global Chat room.
+ * @param {number[]} uids
+ * @param {number} oldGlobalRoomId
+ * @returns {Promise<number>} newRoomId
+ */
+async function createGlobalRoom(uids, oldGlobalRoomId) {
+	const now = Date.now();
 
-      db.incrObjectField('global', 'nextChatRoomId', next);
-    },
-    (createdRoomId, next) => {
-      newRoomId = createdRoomId;
-      const room = {
-        roomId: newRoomId,
-        groupChat: 1,
-        roomName: 'Global Chat',
-      };
-      db.setObject(`chat:room:${newRoomId}`, room, next);
-    },
-    next => db.sortedSetAdd(`chat:room:${newRoomId}:uids`, uids.map(() => now), uids, next),
-    next => Messaging.addRoomToUsers(newRoomId, uids, now, next),
-    next => next(null, newRoomId),
-  ], callback);
+	const newRoomId = oldGlobalRoomId || await db.incrObjectField('global', 'nextChatRoomId');
+	const room = {
+		roomId: newRoomId,
+		groupChat: 1,
+		roomName: 'Global Chat',
+	};
+	await db.setObject(`chat:room:${newRoomId}`, room);
+	await db.sortedSetAdd(`chat:room:${newRoomId}:uids`, uids.map(() => now), uids);
+	await Messaging.addRoomToUsers(newRoomId, uids, now);
+
+	return newRoomId;
 }
 
-function deleteRoom(callback) {
-  waterfall([
-    // get all uids
-    next => User.getUidsFromSet('users:joindate', 0, -1, next),
-    // remove all users from room
-    (uids, next) => Messaging.leaveRoom(uids, roomId, err => next(err)),
-    // delete room
-    next => db.delete(`chat:room:${roomId}`, next),
-  ], err => callback(err));
+/**
+ * Deletes a Global Chat room
+ * @param {number} globalRoomId
+ */
+async function deleteGlobalRoom(globalRoomId) {
+	const uids = await Messaging.getUidsInRoom(globalRoomId, 0, -1);
+	await Messaging.leaveRoom(uids, globalRoomId);
+	await db.delete(`chat:room:${globalRoomId}`);
 }
-
-const renderAdmin = (req, res) => {
-  res.render('admin/plugins/global-chat', {});
-};
 
 const updateRoomEvent = 'global-chat:update-roomId';
 pubsub.on(updateRoomEvent, (newRoomId) => {
-  roomId = newRoomId;
+	roomId = newRoomId;
 });
 
-exports.init = ({ router, middleware }, callback) => {
-  router.get('/admin/plugins/global-chat', middleware.admin.buildHeader, renderAdmin);
-  router.get('/api/admin/plugins/global-chat', renderAdmin);
+exports.init = async function ({ router, middleware }) {
+	const renderAdmin = (req, res) => {
+		res.render('admin/plugins/global-chat', {});
+	};
+	router.get('/admin/plugins/global-chat', middleware.admin.buildHeader, renderAdmin);
+	router.get('/api/admin/plugins/global-chat', renderAdmin);
 
-  router.post('/api/admin/plugins/global-chat/delete-room', (req, res, next) => {
-    deleteRoom((err) => {
-      if (err) {
-        next(err);
-        return;
-      }
+	router.post('/api/admin/plugins/global-chat/delete-room',
+		(req, res, next) => deleteGlobalRoom(roomId)
+			.then(() => res.sendStatus(200))
+			.catch(err => next(err)));
 
-      res.sendStatus(200);
-    });
-  });
+	// only run on primary machine
+	// let pubsub handle it
+	if (!nconf.get('runJobs')) {
+		return;
+	}
 
-  // only run on primary machine
-  // let pubsub handle it
-  if (!nconf.get('runJobs')) {
-    callback();
-    return;
-  }
+	const currentRoomId = await db.get(ROOM_KEY);
+	const originalRoomId = await db.getObjectField(`chat:room:${currentRoomId}`, 'roomId');
 
-  let oldRoomId;
+	roomId = originalRoomId;
+	console.log('roomId', roomId);
 
-  waterfall([
-    // check if room already exists
-    next => db.get(roomKey, next),
-    (roomIdVal, next) => {
-      oldRoomId = roomIdVal;
-      db.getObjectField(`chat:room:${roomIdVal}`, 'roomId', next);
-    },
-    (roomIdVal, next) => {
-      roomId = roomIdVal;
+	if (roomId) {
+		pubsub.publish(updateRoomEvent, roomId);
+		return;
+	}
 
-      if (roomId != null) {
-        pubsub.publish(updateRoomEvent, roomId);
-        callback();
-      } else {
-        next();
-      }
-    },
-    // get all uids
-    next => User.getUidsFromSet('users:joindate', 0, -1, next),
-    // add all uids to the room
-    (uids, next) => newRoom(uids, oldRoomId, next),
-    (roomIdVal, next) => {
-      roomId = roomIdVal;
-      if (roomId == null) {
-        next(new Error('[global-chat] Failed to create new room'));
-        return;
-      }
+	const allUids = await User.getUidsFromSet('users:joindate', 0, -1);
+	const newRoomId = await createGlobalRoom(allUids, currentRoomId);
 
-      db.set(roomKey, roomId, next);
-      pubsub.publish(updateRoomEvent, roomId);
-    },
-  ], callback);
+	roomId = newRoomId;
+	console.log('roomId', roomId);
+
+	if (!roomId) {
+		throw new Error('[global-chat] Failed to create new room');
+	}
+
+	await db.set(ROOM_KEY, roomId);
+	pubsub.publish(updateRoomEvent, roomId);
 };
 
-// add registered users to global chat
-exports.addUser = (data) => {
-  if (roomId == null) {
-    return;
-  }
 
-  const { uid } = data.user;
+/**
+ * Called on `action:user.create`.
+ * Add registered users to global chat.
+ */
+exports.addUser = async function (data) {
+	if (!roomId) {
+		return;
+	}
+	const { uid } = data.user;
+	const now = Date.now();
 
-  const now = Date.now();
-  parallel([
-    next => db.sortedSetAdd(`chat:room:${roomId}:uids`, now, uid, next),
-    next => Messaging.addRoomToUsers(roomId, [uid], now, next),
-  ], err => err && winston.error('[plugin-global-chat] Error adding user to global chat', err));
+	await Promise.all([
+		db.sortedSetAdd(`chat:room:${roomId}:uids`, now, uid),
+		Messaging.addRoomToUsers(roomId, [uid], now),
+	]).catch(err => winston.error('[plugin-global-chat] Error adding user to global chat', err));
 };
 
-exports.addRoomId = (config, callback) => {
-  config.globalChatRoomId = roomId;
-  callback(null, config);
+/**
+ * Called on `filter:config.get`.
+ */
+exports.addRoomId = async function (config) {
+	config.globalChatRoomId = roomId;
+	return config;
 };
 
-exports.shouldNotify = (data, callback) => {
-  // eslint-disable-next-line eqeqeq
-  if (data.roomId == roomId) {
-    filter(data.uids, (uid, next) => db.isSetMember(
-      usersIgnoringKey,
-      uid,
-      (err, yes) => next(err, !yes)
-    ), (err, uids) => {
-      data.uids = uids;
-      callback(err, data);
-    });
-  } else {
-    callback(null, data);
-  }
+/**
+ * Called on `filter:messaging.notify`
+ */
+exports.shouldNotify = async function (data) {
+	if (data.roomId !== roomId) {
+		return data;
+	}
+
+	const isIgnores = await db.isSetMembers(USERS_IGNORING_KEY, data.uids);
+	data.uids = data.uids.filter((uid, i) => !isIgnores[i]);
+
+	return data;
 };
 
-exports.adminMenu = (header, callback) => {
-  header.plugins.push({
-    route: '/plugins/global-chat',
-    icon: 'fa-comments',
-    name: 'Global Chat',
-  });
-
-  callback(null, header);
+/**
+ * Called on `filter:admin.header.build`
+ */
+exports.adminMenu = async function (header) {
+	header.plugins.push({
+		route: '/plugins/global-chat',
+		icon: 'fa-comments',
+		name: 'Global Chat',
+	});
+	return header;
 };
 
-function ignore(socket, callback) {
-  db.setAdd(usersIgnoringKey, socket.uid, callback);
-}
-// opposite of ignore
-function watch(socket, callback) {
-  db.setRemove(usersIgnoringKey, socket.uid, callback);
-}
-function isIgnoring(socket, callback) {
-  db.isSetMember(usersIgnoringKey, socket.uid, callback);
-}
 PluginSockets.globalChat = {
-  ignore,
-  watch,
-  isIgnoring,
+	ignore: async socket => db.setAdd(USERS_IGNORING_KEY, socket.uid),
+	watch: async socket => db.setRemove(USERS_IGNORING_KEY, socket.uid),
+	isIgnoring: async socket => db.isSetMember(USERS_IGNORING_KEY, socket.uid),
 };

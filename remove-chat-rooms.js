@@ -1,50 +1,50 @@
 'use strict';
 
 const path = require('path');
-const async = require('async');
 
 // eslint-disable-next-line import/no-dynamic-require
 const nconf = require(path.resolve(process.cwd(), './node_modules/nconf'));
 
 nconf.file({
-  file: path.resolve(process.cwd(), './config.json'),
+	file: path.resolve(process.cwd(), './config.json'),
 });
 
 nconf.defaults({
-  base_dir: process.cwd(),
-  views_dir: './build/public/templates',
+	base_dir: process.cwd(),
+	views_dir: './build/public/templates',
 });
 
 // eslint-disable-next-line import/no-dynamic-require
 const db = require(path.resolve(process.cwd(), './src/database'));
 
-let uids;
+(async () => {
+	try {
+		await db.init();
 
-async.series([
-  next => db.init(next),
-  next => db.getSortedSetRange('users:joindate', 0, -1, (err, _uids) => {
-    uids = _uids;
-    next(err);
-  }),
-  next => async.each(process.argv.slice(2), (roomId, done) => {
-    async.parallel([
-      cb => db.delete(`chat:room:${roomId}`, cb),
-      cb => db.delete(`chat:room:${roomId}:uids`, cb),
-      cb => async.each(uids, (uid, after) => {
-        db.delete(`uid:${uid}:chat:room:${roomId}:mids`, after);
-      }, cb),
-      (cb) => {
-        const keys = uids.map(uid => `uid:${uid}:chat:rooms`);
-        db.sortedSetsRemove(keys, roomId, cb);
-      },
-    ], done);
-  }, next),
-], (err) => {
-  if (err) {
-    // eslint-disable-next-line no-console
-    console.error(err);
-    process.exit(1);
-  }
+		const uids = await db.getSortedSetRange('users:joindate', 0, -1);
+		const roomIds = process.argv.slice(2);
 
-  process.exit(0);
-});
+		const keysToDelete = [];
+		const promisesToResolve = [];
+
+		for (const roomId of roomIds) {
+			keysToDelete.push(`chat:room:${roomId}`);
+			keysToDelete.push(`chat:room:${roomId}:uids`);
+			for (const uid of uids) {
+				keysToDelete.push(`uid:${uid}:chat:room:${roomId}:mids`);
+			}
+			promisesToResolve.push(
+				db.sortedSetsRemove(uids.map(uid => `uid:${uid}:chat:rooms`), roomId)
+			);
+		}
+
+		promisesToResolve.push(db.deleteAll(keysToDelete));
+
+		await Promise.all(promisesToResolve);
+	} catch (err) {
+		console.error(err);
+		process.exit(1);
+	}
+
+	process.exit(0);
+})();
