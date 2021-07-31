@@ -69,7 +69,7 @@ exports.init = async function ({ router, middleware }) {
 
 	// only run on primary machine
 	// let pubsub handle it
-	if (!nconf.get('runJobs')) {
+	if (!nconf.get('isPrimary')) {
 		return;
 	}
 
