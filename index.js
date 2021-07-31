@@ -31,7 +31,7 @@ async function createGlobalRoom(uids, oldGlobalRoomId) {
 	const room = {
 		roomId: newRoomId,
 		groupChat: 1,
-		roomName: 'Global Chat',
+		roomName: '[[plugin-global-chat:global-chat]]',
 	};
 	await db.setObject(`chat:room:${newRoomId}`, room);
 	await db.sortedSetAdd(`chat:room:${newRoomId}:uids`, uids.map(() => now), uids);
@@ -145,7 +145,7 @@ exports.adminMenu = async function (header) {
 	header.plugins.push({
 		route: '/plugins/global-chat',
 		icon: 'fa-comments',
-		name: 'Global Chat',
+		name: '[[plugin-global-chat:global-chat]]',
 	});
 	return header;
 };

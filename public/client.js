@@ -8,21 +8,25 @@ $(document).ready(function () {
 		return '<a href="#" data-action="global-chat-' + action + '"><i class="fa fa-fw fa-bell' + (ignoring ? '' : '-slash') + '-o"></i> [[category:' + action + ']]</a>';
 	}
 
-	$('head').append(
-		'<style type="text/css">' +
-		'[data-roomid="' + roomId + '"] [data-action="leave"],' +
-		'[data-roomid="' + roomId + '"] [component="chat/leave"] {' +
-		'  display: none;' +
-		'}' +
-		'[data-roomid="' + roomId + '"] [component="chat/header"] .members {' +
-		'  display: none;' +
-		'}' +
-		'[data-roomid="' + roomId + '"] [component="chat/header"]::before {' +
-		'  content: "Chat with everyone";' +
-		'  font-weight: 500;' +
-		'}' +
-		'</style>'
-	);
+	require(['translator'], function (translator) {
+		translator.translate('[[plugin-global-chat:chat-with-everyone]]', function (translated) {
+			$('head').append(
+				'<style type="text/css">' +
+				'[data-roomid="' + roomId + '"] [data-action="leave"],' +
+				'[data-roomid="' + roomId + '"] [component="chat/leave"] {' +
+				'  display: none;' +
+				'}' +
+				'[data-roomid="' + roomId + '"] [component="chat/header"] .members {' +
+				'  display: none;' +
+				'}' +
+				'[data-roomid="' + roomId + '"] [component="chat/header"]::before {' +
+				'  content: "' + translated + '";' +
+				'  font-weight: 500;' +
+				'}' +
+				'</style>'
+			);
+		});
+	});
 	$(document).on('click', '[data-roomid="' + roomId + '"] [component="chat/controlsToggle"]', function (e) {
 		var elem = $(e.currentTarget);
 		if (elem.hasClass('global-chat-fixed')) {
