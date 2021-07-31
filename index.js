@@ -77,7 +77,6 @@ exports.init = async function ({ router, middleware }) {
 	const originalRoomId = await db.getObjectField(`chat:room:${currentRoomId}`, 'roomId');
 
 	roomId = originalRoomId;
-	console.log('roomId', roomId);
 
 	if (roomId) {
 		pubsub.publish(updateRoomEvent, roomId);
@@ -88,7 +87,6 @@ exports.init = async function ({ router, middleware }) {
 	const newRoomId = await createGlobalRoom(allUids, currentRoomId);
 
 	roomId = newRoomId;
-	console.log('roomId', roomId);
 
 	if (!roomId) {
 		throw new Error('[global-chat] Failed to create new room');
