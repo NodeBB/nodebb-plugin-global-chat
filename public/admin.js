@@ -1,4 +1,4 @@
-define('admin/plugins/global-chat', [], function () {
+define('admin/plugins/global-chat', ['bootbox'], function (bootbox) {
   $('#delete-room').click(function () {
     bootbox.confirm('Are you totally sure you want to delete the chat room?', function (response) {
       if (response) {
