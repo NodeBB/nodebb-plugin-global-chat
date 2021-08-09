@@ -1,4 +1,8 @@
 {
+  "id": "nodebb-plugin-global-chat",
+  "name": "Global Chat",
+  "description": "Adds a global chat room to NodeBB",
+  "url": "https://github.com/NodeBB/nodebb-plugin-global-chat",
   "library": "index.js",
   "hooks": [
     { "hook": "static:app.load", "method": "init" },
@@ -7,7 +11,8 @@
     { "hook": "filter:messaging.notify", "method": "shouldNotify" },
     { "hook": "filter:admin.header.build", "method": "adminMenu" }
   ],
-  "templates": "public/templates",
+  "templates": "templates",
+  "languages": "languages",
   "scripts": [
     "public/client.js"
   ],
