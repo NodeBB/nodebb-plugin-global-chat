@@ -1,0 +1,7 @@
+// So member avatars don't fill and overflow the listing
+.chats-list > li .members {
+  max-height: 28px; // height of avatar
+  max-width: 360px; // shows 21 avatars without cutting off the rightmost one
+  padding-right: 14px; // if fewer than 22 avatars, don't cut off the rightmost one
+  overflow: hidden;
+}

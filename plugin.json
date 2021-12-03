@@ -7,12 +7,17 @@
   "hooks": [
     { "hook": "static:app.load", "method": "init" },
     { "hook": "action:user.create", "method": "addUser" },
-    { "hook": "filter:config.get", "method": "addRoomId" },
+    { "hook": "filter:messaging.loadRoom", "method": "roomLoad" },
+    { "hook": "filter:messaging.isRoomOwner", "method": "isRoomOwner" },
+    { "hook": "filter:messaging.addUsersToRoom", "method": "roomAddUsers" },
     { "hook": "filter:messaging.notify", "method": "shouldNotify" },
     { "hook": "filter:admin.header.build", "method": "adminMenu" }
   ],
   "templates": "templates",
   "languages": "languages",
+  "less": [
+    "public/fixes.less"
+  ],
   "scripts": [
     "public/client.js"
   ],

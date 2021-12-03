@@ -4,6 +4,8 @@ It adds a global chat room to NodeBB. Uses the NodeBB internal chat system so ev
 
 Install from the ACP or `npm install nodebb-plugin-global-chat`.
 
+Requires minimum NodeBB v1.18.4
+
 ### Features
 
 - Uses NodeBB internal chat system

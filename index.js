@@ -76,7 +76,7 @@ exports.init = async function ({ router, middleware }) {
 	const currentRoomId = await db.get(ROOM_KEY);
 	const originalRoomId = await db.getObjectField(`chat:room:${currentRoomId}`, 'roomId');
 
-	roomId = originalRoomId;
+	roomId = parseInt(originalRoomId, 10);
 
 	if (roomId) {
 		pubsub.publish(updateRoomEvent, roomId);
@@ -115,23 +115,48 @@ exports.addUser = async function (data) {
 };
 
 /**
- * Called on `filter:config.get`.
+ * Called on `filter:messaging.loadRoom`
  */
-exports.addRoomId = async function (config) {
-	config.globalChatRoomId = roomId;
-	return config;
+exports.roomLoad = async function (params) {
+	const { uid, room } = params;
+	if (parseInt(room.roomId, 10) === roomId) {
+		room.globalChat = true;
+		room.ignoring = !!await db.isSetMember(USERS_IGNORING_KEY, uid);
+		room.isOwner = room.isAdminOrGlobalMod;
+	}
+	return params;
+};
+
+/**
+ * Called on `filter:messaging.addUsersToRoom`
+ */
+exports.roomAddUsers = async function (params) {
+	if (parseInt(params.roomId, 10) === roomId) {
+		if (!await User.isAdminOrGlobalMod(params.uid)) {
+			throw new Error('[[error:cant-add-users-to-chat-room]]');
+		}
+	}
+	return params;
+};
+
+/**
+ * Called on `filter:messaging.isRoomOwner`
+ */
+exports.isRoomOwner = async function (params) {
+	if (parseInt(params.roomId, 10) === roomId) {
+		params.isOwner = await User.isAdminOrGlobalMod(params.uid);
+	}
+	return params;
 };
 
 /**
  * Called on `filter:messaging.notify`
  */
 exports.shouldNotify = async function (data) {
-	if (data.roomId !== roomId) {
-		return data;
+	if (parseInt(data.roomId, 10) === roomId) {
+		const ignoring = await db.isSetMembers(USERS_IGNORING_KEY, data.uids);
+		data.uids = data.uids.filter((uid, i) => !ignoring[i]);
 	}
-
-	const isIgnores = await db.isSetMembers(USERS_IGNORING_KEY, data.uids);
-	data.uids = data.uids.filter((uid, i) => !isIgnores[i]);
 
 	return data;
 };
