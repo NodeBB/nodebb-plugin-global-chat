@@ -1,3 +1,7 @@
+# This plugin is deprecated
+
+NodeBB 3.2.x and up comes with public chat rooms, this plugin is not needed anymore.
+
 ## nodebb-plugin-global-chat
 
 It adds a global chat room to NodeBB. Uses the NodeBB internal chat system so everything works as expected.
